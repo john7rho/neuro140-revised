@@ -1,5 +1,6 @@
 import chess
 import numpy as np
+import random
 
 mapper = {}
 mapper["p"] = 0
