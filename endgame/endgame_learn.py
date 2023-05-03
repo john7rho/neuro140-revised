@@ -1,6 +1,7 @@
 import numpy as np
 import time
 from RLC.real_chess.tree import Node
+import chess
 import math
 import gc
 import random
@@ -79,35 +80,43 @@ class TD_search(object):
             board: Chess environment on terminal state
         """
 
-        # This function generates random moves within a block
-        def random_move(row, col, max_row, max_col, block_size=1):
-            new_row = random.randint(max(0, row - block_size), min(max_row - 1, row + block_size))
-            new_col = random.randint(max(0, col - block_size), min(max_col - 1, col + block_size))
-            return new_row, new_col
-        
-
         episode_end = False
         turncount = 0
-        tree = Node(self.env.board, gamma=self.gamma)  # Initialize the game tree
-
+        
         # Play a game of chess
         while not episode_end:
-            state = np.expand_dims(self.env.layer_board.copy(), axis=0)
-            state_value = self.agent.predict(state)
-            temp_board = self.env.layer_board.copy()
-            temp_tree = self.mcts(tree)
+            # This function generates random moves within a block
+            temp_layer_board = self.env.layer_board.copy()
+            temp_board = self.env.board.copy()
+
+            def random_move(row, col, max_row, max_col, block_size=1):
+                new_row = random.randint(max(0, row - block_size), min(max_row - 1, row + block_size))
+                new_col = random.randint(max(0, col - block_size), min(max_col - 1, col + block_size))
+                return new_row, new_col
+
+            print("Current FEN:", self.env.board.fen())
 
             # Change: Introduce random noise after the state and state value are decided
-            percentage = 1.0
+            percentage = 0.2
             block_size = 1
-            for layer in range(6):
-                for row in range(8):
-                    for col in range(8):
-                        if self.env.layer_board[layer, row, col] != 0 and random.random() < percentage:
-                            new_row, new_col = random_move(row, col, 8, 8, block_size)
-                            # Move the piece to the new location
-                            self.env.layer_board[layer, new_row, new_col] = self.env.layer_board[layer, row, col]
-                            self.env.layer_board[layer, row, col] = 0
+            for row in range(8):
+                for col in range(8):
+                    piece = temp_board.piece_at(row * 8 + col)
+                    if piece and piece.color == chess.BLACK and random.random() < percentage:
+                        new_row, new_col = random_move(row, col, 8, 8, block_size)
+                        # Move the piece to the new location
+                        if not temp_board.piece_at(new_row * 8 + new_col):
+                            self.env.board.remove_piece_at(row * 8 + col)
+                            self.env.board.set_piece_at(new_row * 8 + new_col, piece)
+
+            episode_end = False
+            turncount = 0
+            tree = Node(temp_board, gamma=self.gamma)  # Initialize the game tree based on the old state
+
+            state = np.expand_dims(temp_layer_board, axis=0)
+            state_value = self.agent.predict(state)
+
+            print("Post-noise FEN:", self.env.board.fen())
             
             # White's turn involves tree-search
             if self.env.board.turn:
@@ -115,7 +124,7 @@ class TD_search(object):
                 # Do a Monte Carlo Tree Search after game iteration k
                 start_mcts_after = -1
                 if k > start_mcts_after:
-                    tree = temp_tree
+                    tree = self.mcts(tree)
                     # Step the best move
                     max_move = None
                     max_value = np.NINF
