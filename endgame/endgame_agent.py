@@ -1,7 +1,7 @@
-from keras.layers import Input, Dense, Flatten, Concatenate, Conv2D, Dropout
-from keras.losses import mean_squared_error
-from keras.models import Model, clone_model, load_model
-from keras.optimizers import SGD, Adam, RMSprop
+from tensorflow.keras.layers import Input, Dense, Flatten, Concatenate, Conv2D, Dropout
+from tensorflow.keras.losses import mean_squared_error
+from tensorflow.keras.models import Model, clone_model, load_model
+from tensorflow.keras.optimizers import SGD, Adam, RMSprop
 import numpy as np
 
 class RandomAgent(object):
@@ -39,7 +39,7 @@ class GreedyAgent(object):
 
 class Agent(object):
 
-    def __init__(self, lr=0.003, network='big'):
+    def __init__(self, lr=0.003, network='big', weights_path=None):
         self.optimizer = RMSprop(lr=lr)
         self.model = Model()
         self.proportional_error = False
@@ -53,6 +53,10 @@ class Agent(object):
             self.init_bignet()
         else:
             self.init_network()
+        
+        if weights_path is not None:
+            # self.model.load_weights(weights_path) # TODO: this may break if it is not a 'big' model specified
+            self.model = load_model(weights_path)
 
     def fix_model(self):
         """
@@ -239,12 +243,3 @@ class Agent(object):
         td_errors = returns - V_state
 
         return td_errors
-    
-    def load_weights(self, file_path):
-        """
-        Load the model weights from the given file path.
-        Args:
-            file_path: str
-                The path to the saved model weights file (.h5).
-        """
-        self.model.load_weights(file_path) # agent = Agent(); agent.load_weights("path/to/your/saved_model_weights.h5")
