@@ -78,6 +78,12 @@ class TD_search(object):
         Returns:
             board: Chess environment on terminal state
         """
+
+        # This function generates random moves within a block
+        def random_move(row, col, max_row, max_col, block_size=1):
+            new_row = random.randint(max(0, row - block_size), min(max_row - 1, row + block_size))
+            new_col = random.randint(max(0, col - block_size), min(max_col - 1, col + block_size))
+            return new_row, new_col
         
 
         episode_end = False
@@ -88,13 +94,19 @@ class TD_search(object):
         while not episode_end:
             state = np.expand_dims(self.env.layer_board.copy(), axis=0)
             state_value = self.agent.predict(state)
+            temp_board = self.env.layer_board.copy()
+            temp_tree = self.mcts(tree)
 
-            # Change: Introduce noise after the state and state value are decided
-            percentage = 0.2
+            # Change: Introduce random noise after the state and state value are decided
+            percentage = 1.0
+            block_size = 1
             for layer in range(6):
                 for row in range(8):
                     for col in range(8):
                         if self.env.layer_board[layer, row, col] != 0 and random.random() < percentage:
+                            new_row, new_col = random_move(row, col, 8, 8, block_size)
+                            # Move the piece to the new location
+                            self.env.layer_board[layer, new_row, new_col] = self.env.layer_board[layer, row, col]
                             self.env.layer_board[layer, row, col] = 0
             
             # White's turn involves tree-search
@@ -103,7 +115,7 @@ class TD_search(object):
                 # Do a Monte Carlo Tree Search after game iteration k
                 start_mcts_after = -1
                 if k > start_mcts_after:
-                    tree = self.mcts(tree)
+                    tree = temp_tree
                     # Step the best move
                     max_move = None
                     max_value = np.NINF
@@ -113,7 +125,11 @@ class TD_search(object):
                             max_value = sampled_value
                             max_move = move
                 else:
-                    max_move = np.random.choice([move for move in self.env.board.generate_legal_moves()])
+                    # move in the "old" incorrect board
+                    max_move = np.random.choice([move for move in temp_board.generate_legal_moves()])
+                    # Change: check if the move is viable in the true board
+                    while self.env.board.piece_at(max_move.to_square) != None:
+                        max_move = np.random.choice([move for move in temp_board.generate_legal_moves()])
 
             # Black's turn is myopic
             else:
